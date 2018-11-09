@@ -4,6 +4,8 @@ version = "0.0.0"
 description = "Guerrilla (or Monkey) Patching in Rust for (unsafe) fun and profit."
 license = "MIT/Apache-2.0"
 readme = "README.md"
+repository = "https://github.com/mehcode/guerrilla"
+documentation = "https://docs.rs/guerrilla"
 authors = ["Ryan Leckey <leckey.ryan@gmail.com>"]
 
 [badges]
