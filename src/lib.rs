@@ -173,6 +173,20 @@ mod tests {
     }
 
     #[test]
+    fn test_functions_independent() {
+        assert_eq!(the_ultimate_question(), 42);
+
+        {
+            let _guard = patch0(the_ultimate_question, || 24);
+
+            assert_eq!(the_ultimate_question(), 24);
+            assert_eq!(default::<i32>(), 0);
+        }
+
+        assert_eq!(the_ultimate_question(), 42);
+    }
+
+    #[test]
     fn test_patch_generic() {
         assert_eq!(default::<i32>(), 0);
 
