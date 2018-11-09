@@ -5,8 +5,11 @@ description = "Guerrilla or Monkey patching in Rust for (unstable) fun and profi
 license = "MIT/Apache-2.0"
 authors = ["Ryan Leckey <leckey.ryan@gmail.com>"]
 
-[dependencies]
+[target.'cfg(any(unix, macos))'.dependencies]
 libc = "0.2.43"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.6", features = [ "memoryapi" ] }
 
 [dev-dependencies]
 chrono = "0.4"

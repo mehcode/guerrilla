@@ -1,5 +1,8 @@
 #![no_std]
 
+#[cfg(windows)]
+extern crate winapi;
+
 #[cfg(any(macos, unix))]
 extern crate libc;
 
@@ -9,6 +12,30 @@ extern crate std;
 
 #[cfg(test)]
 extern crate chrono;
+
+#[cfg(windows)]
+unsafe fn copy_to_protected_address(dst: *mut u8, src: &[u8]) {
+    use winapi::shared::minwindef::DWORD;
+    use winapi::um::memoryapi::VirtualProtect;
+    use winapi::um::winnt::PAGE_EXECUTE_READWRITE;
+
+    let mut old_permissions: DWORD = 0;
+    let rv = VirtualProtect(
+        dst as _,
+        src.len(),
+        PAGE_EXECUTE_READWRITE,
+        (&mut old_permissions) as _,
+    );
+
+    assert_eq!(rv, 1);
+
+    core::ptr::copy(src.as_ptr(), dst, src.len());
+
+    let mut temp: DWORD = 0;
+    let rv = VirtualProtect(dst as _, src.len(), old_permissions, (&mut temp) as _);
+
+    assert_eq!(rv, 1);
+}
 
 #[cfg(any(macos, unix))]
 unsafe fn copy_to_protected_address(dst: *mut u8, src: &[u8]) {
