@@ -13,4 +13,4 @@ libc = "0.2.43"
 winapi = { version = "0.3.6", features = [ "memoryapi" ] }
 
 [dev-dependencies]
-chrono = "0.4"
+chrono = "0.4.6"
