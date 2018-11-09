@@ -1,73 +1,107 @@
+#![no_std]
+
+#[cfg(any(macos, unix))]
 extern crate libc;
 
-use libc::{sysconf, _SC_PAGESIZE, mprotect, PROT_EXEC, PROT_READ, PROT_WRITE};
-use std::{ptr, mem::transmute};
+#[cfg(test)]
+#[macro_use]
+extern crate std;
 
-unsafe fn mprotect_ptr(dst: *mut u8, prot: i32) {
+#[cfg(test)]
+extern crate chrono;
+
+#[cfg(any(macos, unix))]
+unsafe fn copy_to_protected_address(dst: *mut u8, src: &[u8]) {
+    use libc::{c_void, mprotect, sysconf, PROT_EXEC, PROT_READ, PROT_WRITE, _SC_PAGESIZE};
+
     let page_size = sysconf(_SC_PAGESIZE) as usize;
-    let page_start = (dst as usize) & !(page_size - 1);
-    let rv = mprotect(transmute(page_start), page_size, prot);
+    let page_start = ((dst as usize) & !(page_size - 1)) as *mut c_void;
 
-    // TODO: Make this a proper error
+    let rv = mprotect(page_start, page_size, PROT_EXEC | PROT_READ | PROT_WRITE);
+    assert_eq!(rv, 0);
+
+    core::ptr::copy(src.as_ptr(), dst, src.len());
+
+    let rv = mprotect(page_start, page_size, PROT_EXEC | PROT_READ);
     assert_eq!(rv, 0);
 }
 
-unsafe fn copy_into_exec(dst: *mut u8, src: &[u8]) {
-    mprotect_ptr(dst, PROT_READ | PROT_WRITE | PROT_EXEC);
-    ptr::copy(src.as_ptr(), dst, src.len());
-    mprotect_ptr(dst, PROT_READ | PROT_EXEC);
-}
+#[cfg(target_arch = "x86")]
+const JMP_SIZE: usize = 7;
 
-#[cfg(any(unix, macos))]
-fn jmp_to_function_value(to: usize) -> Vec<u8> {
-    vec![
-        // movabs rdx, {to}
-        0x48,
+#[cfg(target_arch = "x86_64")]
+const JMP_SIZE: usize = 12;
+
+#[cfg(target_arch = "x86")]
+#[inline]
+fn assemble_jmp_to_address(address: usize) -> [u8; JMP_SIZE] {
+    [
+        // mov edx, #
         0xBA,
-        to as u8,
-        (to >> 8) as u8,
-        (to >> 16) as u8,
-        (to >> 24) as u8,
-        (to >> 32) as u8,
-        (to >> 40) as u8,
-        (to >> 48) as u8,
-        (to >> 56) as u8,
-        // jmp rdx
+        address as u8,
+        (address >> 8) as u8,
+        (address >> 16) as u8,
+        (address >> 24) as u8,
+        // jmp edx
         0xFF,
-        0xe2,
+        0xE2,
     ]
 }
 
-pub struct Patch {
-    ptr: *mut u8,
-    data: Vec<u8>,
+#[cfg(target_arch = "x86_64")]
+#[inline]
+fn assemble_jmp_to_address(address: usize) -> [u8; JMP_SIZE] {
+    [
+        // movabs rdx, #
+        0x48,
+        0xBA,
+        address as u8,
+        (address >> 8) as u8,
+        (address >> 16) as u8,
+        (address >> 24) as u8,
+        (address >> 32) as u8,
+        (address >> 40) as u8,
+        (address >> 48) as u8,
+        (address >> 56) as u8,
+        // jmp rdx
+        0xFF,
+        0xE2,
+    ]
 }
 
-impl Drop for Patch {
+/// When this structure is dropped (falls out of scope), the patch will be reverted and the function will return
+/// to its original state.
+pub struct PatchGuard {
+    ptr: *mut u8,
+    data: [u8; JMP_SIZE],
+}
+
+impl Drop for PatchGuard {
     fn drop(&mut self) {
         unsafe {
-            copy_into_exec(self.ptr, &self.data);
+            copy_to_protected_address(self.ptr, &self.data[..]);
         }
     }
 }
 
 macro_rules! define_patch {
     ($name:ident($($arguments:ident,)*)) => (
-        pub fn $name<R, $($arguments,)*>(target: fn($($arguments,)*) -> R, func: fn($($arguments,)*) -> R) -> Patch {
+        /// Patch replaces a function with another. Accepts closures as replacement functions as long as they
+        /// do not bind to the environment.
+        pub fn $name<R, $($arguments,)*>(target: fn($($arguments,)*) -> R, func: fn($($arguments,)*) -> R) -> PatchGuard {
             let target = target as *mut u8;
-            let patch = jmp_to_function_value(func as *const () as usize);
-
-            let mut original = vec![0; patch.len()];
+            let patch = assemble_jmp_to_address(func as *const () as usize);
+            let mut original = [0; JMP_SIZE];
 
             unsafe {
-                ptr::copy(target, original.as_mut_ptr(), original.len());
+                core::ptr::copy(target, original.as_mut_ptr(), original.len());
             }
 
             unsafe {
-                copy_into_exec(target, &patch);
+                copy_to_protected_address(target, &patch[..]);
             }
 
-            Patch {
+            PatchGuard {
                 ptr: target,
                 data: original,
             }
