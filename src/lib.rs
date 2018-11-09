@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn test_functions_independent() {
         assert_eq!(the_ultimate_question(), 42);
-        assert_eq!(the_ultimate_question(), 23);
+        assert_eq!(other_question(), 23);
 
         {
             let _guard = patch0(the_ultimate_question, || 24);
