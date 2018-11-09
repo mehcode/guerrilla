@@ -1,4 +1,6 @@
 # Guerrilla
+[![Crates.io](https://img.shields.io/crates/v/guerrilla.svg?style=popout-square)](https://crates.io/crates/guerrilla)
+![License](https://img.shields.io/crates/l/guerrilla.svg?style=popout-square)
 > Guerrilla (or Monkey) Patching in Rust for (unsafe) fun and profit.
 
 Provides aribtrary monkey patching in Rust. Please do not use this crate for anything outside of testing.
