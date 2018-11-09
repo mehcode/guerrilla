@@ -1,5 +1,6 @@
 extern crate guerrilla;
 
+#[inline(never)]
 fn say_hi(name: &str) {
     println!("hello, {}", name);
 }

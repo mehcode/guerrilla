@@ -15,6 +15,7 @@ Can patch (almost) any function in Rust (free, associated, instance, generic, et
 ```rust
 extern crate guerrilla;
 
+#[inline(never)]
 fn say_hi(name: &str) {
     println!("hello, {}", name);
 }
