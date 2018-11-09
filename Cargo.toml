@@ -8,10 +8,6 @@ repository = "https://github.com/mehcode/guerrilla"
 documentation = "https://docs.rs/guerrilla"
 authors = ["Ryan Leckey <leckey.ryan@gmail.com>"]
 
-[badges]
-appveyor = { repository = "mehcode/guerrilla", branch = "master", service = "github" }
-travis-ci = { repository = "mehcode/guerrilla", branch = "master" }
-
 [target.'cfg(any(unix, macos))'.dependencies]
 libc = "0.2.43"
 
