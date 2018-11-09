@@ -163,18 +163,26 @@ mod tests {
     fn test_patch() {
         assert_eq!(the_ultimate_question(), 42);
 
-        let _guard = patch0(the_ultimate_question, || 24);
+        {
+            let _guard = patch0(the_ultimate_question, || 24);
 
-        assert_eq!(the_ultimate_question(), 24);
+            assert_eq!(the_ultimate_question(), 24);
+        }
+
+        assert_eq!(the_ultimate_question(), 42);
     }
 
     #[test]
     fn test_patch_generic() {
         assert_eq!(default::<i32>(), 0);
 
-        let _guard = patch0(default::<i32>, || 1);
+        {
+            let _guard = patch0(default::<i32>, || 1);
 
-        assert_eq!(default::<i32>(), 1);
+            assert_eq!(default::<i32>(), 1);
+        }
+
+        assert_eq!(default::<i32>(), 0);
     }
 
     #[test]
@@ -182,10 +190,14 @@ mod tests {
         let now = Utc::now();
         assert!(now.year() >= 2018);
 
-        let _guard = patch0(Utc::now, || Utc.ymd(1, 1, 1).and_hms(1, 1, 1));
+        {
+            let _guard = patch0(Utc::now, || Utc.ymd(1, 1, 1).and_hms(1, 1, 1));
 
-        let now = Utc::now();
-        assert_eq!(now.year(), 1);
-        assert_eq!(now.hour(), 1);
+            let now = Utc::now();
+            assert_eq!(now.year(), 1);
+            assert_eq!(now.hour(), 1);
+        }
+
+        assert!(now.year() >= 2018);
     }
 }
