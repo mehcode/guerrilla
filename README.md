@@ -1,5 +1,7 @@
 # Guerrilla
 [![Crates.io](https://img.shields.io/crates/v/guerrilla.svg?style=popout-square)](https://crates.io/crates/guerrilla)
+[![Travis (.com)](https://img.shields.io/travis/com/mehcode/guerrilla.svg?label=Travis%20CI&style=flat-square)](https://travis-ci.com/mehcode/guerrilla)
+[![AppVeyor](https://img.shields.io/appveyor/ci/mehcode/guerrilla.svg?label=AppVeyor&style=flat-square)](https://ci.appveyor.com/project/mehcode/guerrilla)
 ![License](https://img.shields.io/crates/l/guerrilla.svg?style=popout-square)
 > Guerrilla (or Monkey) Patching in Rust for (unsafe) fun and profit.
 
