@@ -119,3 +119,46 @@ define_patch!(patch6(A, B, C, D, E, F,));
 define_patch!(patch7(A, B, C, D, E, F, G,));
 define_patch!(patch8(A, B, C, D, E, F, G, H,));
 define_patch!(patch9(A, B, C, D, E, F, G, H, I,));
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Datelike, TimeZone, Timelike, Utc};
+
+    fn the_ultimate_question() -> u32 {
+        42
+    }
+    fn default<T: Default>() -> T {
+        T::default()
+    }
+
+    #[test]
+    fn test_patch() {
+        assert_eq!(the_ultimate_question(), 42);
+
+        let _guard = patch0(the_ultimate_question, || 24);
+
+        assert_eq!(the_ultimate_question(), 24);
+    }
+
+    #[test]
+    fn test_patch_generic() {
+        assert_eq!(default::<i32>(), 0);
+
+        let _guard = patch0(default::<i32>, || 1);
+
+        assert_eq!(default::<i32>(), 1);
+    }
+
+    #[test]
+    fn test_patch_external() {
+        let now = Utc::now();
+        assert!(now.year() >= 2018);
+
+        let _guard = patch0(Utc::now, || Utc.ymd(1, 1, 1).and_hms(1, 1, 1));
+
+        let now = Utc::now();
+        assert_eq!(now.year(), 1);
+        assert_eq!(now.hour(), 1);
+    }
+}

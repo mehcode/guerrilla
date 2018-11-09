@@ -7,3 +7,6 @@ authors = ["Ryan Leckey <leckey.ryan@gmail.com>"]
 
 [dependencies]
 libc = "0.2.43"
+
+[dev-dependencies]
+chrono = "0.4"
