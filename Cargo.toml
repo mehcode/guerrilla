@@ -1,8 +1,9 @@
 [package]
 name = "guerrilla"
 version = "0.0.0"
-description = "Guerrilla or Monkey patching in Rust for (unstable) fun and profit."
+description = "Guerrilla (or Monkey) Patching in Rust for (unsafe) fun and profit."
 license = "MIT/Apache-2.0"
+readme = "README.md"
 authors = ["Ryan Leckey <leckey.ryan@gmail.com>"]
 
 [target.'cfg(any(unix, macos))'.dependencies]
