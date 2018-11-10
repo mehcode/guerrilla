@@ -273,4 +273,20 @@ mod tests {
 
         assert!(now.year() >= 2018);
     }
+
+    #[test]
+    fn test_patch_existing_local() {
+        assert_eq!(the_ultimate_question(), 42);
+        assert_eq!(other_question(), 23);
+
+        {
+            let _guard = patch0(the_ultimate_question, other_question);
+
+            assert_eq!(the_ultimate_question(), 23);
+            assert_eq!(other_question(), 23);
+        }
+
+        assert_eq!(the_ultimate_question(), 42);
+        assert_eq!(other_question(), 23);
+    }
 }
