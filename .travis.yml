@@ -10,3 +10,6 @@ matrix:
     - rust: nightly
 
   fast_finish: true
+
+script:
+  - cargo test --verbose --all -- --test-threads=1

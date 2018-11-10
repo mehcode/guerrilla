@@ -64,4 +64,4 @@ install:
 build: false
 
 test_script:
-  - cargo test --verbose %cargoflags%
+  - cargo test --verbose -- --test-threads=1
