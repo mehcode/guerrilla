@@ -53,60 +53,103 @@ unsafe fn copy_to_protected_address(dst: *mut u8, src: &[u8]) {
     assert_eq!(rv, 0);
 }
 
-#[cfg(target_arch = "x86")]
-const JMP_SIZE: usize = 7;
+const JMP_MAX_SIZE: usize = 12;
 
-#[cfg(target_arch = "x86_64")]
-const JMP_SIZE: usize = 12;
-
-#[cfg(target_arch = "x86")]
 #[inline]
-fn assemble_jmp_to_address(address: usize) -> [u8; JMP_SIZE] {
-    [
-        // mov edx, #
-        0xBA,
-        address as u8,
-        (address >> 8) as u8,
-        (address >> 16) as u8,
-        (address >> 24) as u8,
-        // jmp edx
-        0xFF,
-        0xE2,
-    ]
-}
-
-#[cfg(target_arch = "x86_64")]
-#[inline]
-fn assemble_jmp_to_address(address: usize) -> [u8; JMP_SIZE] {
-    [
-        // movabs rdx, #
-        0x48,
-        0xBA,
-        address as u8,
-        (address >> 8) as u8,
-        (address >> 16) as u8,
-        (address >> 24) as u8,
-        (address >> 32) as u8,
-        (address >> 40) as u8,
-        (address >> 48) as u8,
-        (address >> 56) as u8,
-        // jmp rdx
-        0xFF,
-        0xE2,
-    ]
+fn assemble_jmp_to_address(address: usize, relative: isize) -> ([u8; JMP_MAX_SIZE], usize) {
+    if (relative >= (core::i8::MIN as isize)) && (relative <= (core::i8::MAX as isize)) {
+        (
+            [
+                // jmp rel8
+                0xEB,
+                relative as u8,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            ],
+            2,
+        )
+    } else if cfg!(target_arch = "x86") {
+        (
+            [
+                // mov edx, #
+                0xBA,
+                address as u8,
+                (address >> 8) as u8,
+                (address >> 16) as u8,
+                (address >> 24) as u8,
+                // jmp edx
+                0xFF,
+                0xE2,
+                0,
+                0,
+                0,
+                0,
+                0,
+            ],
+            7,
+        )
+    } else if (relative >= (core::i32::MIN as isize)) && (relative <= (core::i32::MAX as isize)) {
+        (
+            [
+                // jmp rel32
+                0xE9,
+                relative as u8,
+                (relative >> 8) as u8,
+                (relative >> 16) as u8,
+                (relative >> 24) as u8,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+            ],
+            5,
+        )
+    } else {
+        (
+            [
+                // movabs rdx, #
+                0x48,
+                0xBA,
+                address as u8,
+                (address >> 8) as u8,
+                (address >> 16) as u8,
+                (address >> 24) as u8,
+                (address >> 32) as u8,
+                (address >> 40) as u8,
+                (address >> 48) as u8,
+                (address >> 56) as u8,
+                // jmp rdx
+                0xFF,
+                0xE2,
+            ],
+            12,
+        )
+    }
 }
 
 /// When this structure is dropped (falls out of scope), the patch will be reverted and the function will return
 /// to its original state.
 pub struct PatchGuard {
     ptr: *mut u8,
-    data: [u8; JMP_SIZE],
+    len: usize,
+    data: [u8; JMP_MAX_SIZE],
 }
 
 impl Drop for PatchGuard {
     fn drop(&mut self) {
         unsafe {
-            copy_to_protected_address(self.ptr, &self.data[..]);
+            copy_to_protected_address(self.ptr, &self.data[..self.len]);
         }
     }
 }
@@ -117,19 +160,30 @@ macro_rules! define_patch {
         /// do not bind to the environment.
         pub fn $name<R, $($arguments,)*>(target: fn($($arguments,)*) -> R, func: fn($($arguments,)*) -> R) -> PatchGuard {
             let target = target as *mut u8;
-            let patch = assemble_jmp_to_address(func as *const () as usize);
-            let mut original = [0; JMP_SIZE];
+            let mut original = [0; JMP_MAX_SIZE];
+
+            let target_addr = target as usize;
+            let func_addr = func as usize;
+
+            let rel = (if target_addr > func_addr {
+                -((target_addr - func_addr) as isize)
+            } else {
+                ((func_addr - target_addr) as isize)
+            }) - 5;
+
+            let (patch, len) = assemble_jmp_to_address(func_addr, rel);
 
             unsafe {
-                core::ptr::copy(target, original.as_mut_ptr(), original.len());
+                core::ptr::copy(target, original.as_mut_ptr(), len);
             }
 
             unsafe {
-                copy_to_protected_address(target, &patch[..]);
+                copy_to_protected_address(target, &patch[..len]);
             }
 
             PatchGuard {
                 ptr: target,
+                len,
                 data: original,
             }
         }
@@ -181,9 +235,9 @@ mod tests {
         assert_eq!(other_question(), 23);
 
         {
-            let _guard = patch0(the_ultimate_question, || 24);
+            let _guard = patch0(the_ultimate_question, || 32);
 
-            assert_eq!(the_ultimate_question(), 24);
+            assert_eq!(the_ultimate_question(), 32);
             assert_eq!(other_question(), 23);
         }
 
