@@ -56,8 +56,9 @@ unsafe fn copy_to_protected_address(dst: *mut u8, src: &[u8]) {
 const JMP_MAX_SIZE: usize = 12;
 
 #[inline]
-fn assemble_jmp_to_address(address: usize, relative: isize) -> ([u8; JMP_MAX_SIZE], usize) {
-    if (relative >= (core::i8::MIN as isize)) && (relative <= (core::i8::MAX as isize)) {
+fn assemble_jmp_to_address(address: usize, mut relative: isize) -> ([u8; JMP_MAX_SIZE], usize) {
+    if (relative - 2 >= (core::i8::MIN as isize)) && (relative - 2 <= (core::i8::MAX as isize)) {
+        relative -= 2;
         (
             [
                 // jmp rel8
@@ -96,7 +97,10 @@ fn assemble_jmp_to_address(address: usize, relative: isize) -> ([u8; JMP_MAX_SIZ
             ],
             7,
         )
-    } else if (relative >= (core::i32::MIN as isize)) && (relative <= (core::i32::MAX as isize)) {
+    } else if (relative - 5 >= (core::i32::MIN as isize))
+        && (relative - 5 <= (core::i32::MAX as isize))
+    {
+        relative -= 5;
         (
             [
                 // jmp rel32
@@ -165,11 +169,11 @@ macro_rules! define_patch {
             let target_addr = target as usize;
             let func_addr = func as usize;
 
-            let rel = (if target_addr > func_addr {
+            let rel = if target_addr > func_addr {
                 -((target_addr - func_addr) as isize)
             } else {
                 ((func_addr - target_addr) as isize)
-            }) - 5;
+            };
 
             let (patch, len) = assemble_jmp_to_address(func_addr, rel);
 
