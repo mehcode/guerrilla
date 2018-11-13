@@ -62,7 +62,7 @@ const JMP_MAX_SIZE: usize = 12;
 #[cfg(target_arch = "x86")]
 #[inline]
 fn assemble_jmp_to_address(address: usize, mut relative: isize) -> ([u8; JMP_MAX_SIZE], usize) {
-    use core::{i16, i8};
+    use core::{i32, i8};
     if (relative - 2 >= (i8::MIN as isize)) && (relative - 2 <= (i8::MAX as isize)) {
         relative -= 2;
         (
@@ -78,20 +78,20 @@ fn assemble_jmp_to_address(address: usize, mut relative: isize) -> ([u8; JMP_MAX
             ],
             2,
         )
-    } else if (relative - 3 >= (i16::MIN as isize)) && (relative - 3 <= (i16::MAX as isize)) {
+    } else if (relative - 5 >= (i32::MIN as isize)) && (relative - 5 <= (i32::MAX as isize)) {
         relative -= 5;
         (
             [
-                // jmp rel16
+                // jmp rel32
                 0xE9,
                 relative as u8,
                 (relative >> 8) as u8,
-                0,
-                0,
+                (relative >> 16) as u8,
+                (relative >> 24) as u8,
                 0,
                 0,
             ],
-            3,
+            5,
         )
     } else {
         (
@@ -294,16 +294,21 @@ mod tests {
         assert_eq!(the_ultimate_question(), 42);
     }
 
+    // Test smallest possible function (in debug mode)
+    // In 32-bit this should panic and properly detect we cannot patch a 1-byte function
     #[test]
     fn test_tiny() {
         assert_eq!(tiny(), ());
 
-        {
+        if let Err(err) = std::panic::catch_unwind(|| {
             let _guard = patch0(tiny, || ());
 
             assert_eq!(tiny(), ());
             assert_eq!(the_ultimate_question(), 42);
             assert_eq!(other_question(), 23);
+        }) {
+            let err = err.downcast::<&'static str>().unwrap();
+            assert_eq!(*err, "target function is too small (1 byte) to patch");
         }
 
         assert_eq!(tiny(), ());
