@@ -1,7 +1,7 @@
 #![no_std]
 
-#[cfg(windows)]
-extern crate winapi;
+#[cfg(test)]
+extern crate chrono;
 
 #[cfg(any(macos, unix))]
 extern crate libc;
@@ -10,8 +10,8 @@ extern crate libc;
 #[macro_use]
 extern crate std;
 
-#[cfg(test)]
-extern crate chrono;
+#[cfg(windows)]
+extern crate winapi;
 
 #[cfg(windows)]
 unsafe fn copy_to_protected_address(dst: *mut u8, src: &[u8]) {
@@ -53,11 +53,69 @@ unsafe fn copy_to_protected_address(dst: *mut u8, src: &[u8]) {
     assert_eq!(rv, 0);
 }
 
+#[cfg(target_arch = "x86")]
+const JMP_MAX_SIZE: usize = 7;
+
+#[cfg(target_arch = "x86_64")]
 const JMP_MAX_SIZE: usize = 12;
 
+#[cfg(target_arch = "x86")]
 #[inline]
 fn assemble_jmp_to_address(address: usize, mut relative: isize) -> ([u8; JMP_MAX_SIZE], usize) {
-    if (relative - 2 >= (core::i8::MIN as isize)) && (relative - 2 <= (core::i8::MAX as isize)) {
+    use core::{i16, i8};
+    if (relative - 2 >= (i8::MIN as isize)) && (relative - 2 <= (i8::MAX as isize)) {
+        relative -= 2;
+        (
+            [
+                // jmp rel8
+                0xEB,
+                relative as u8,
+                0,
+                0,
+                0,
+                0,
+                0,
+            ],
+            2,
+        )
+    } else if (relative - 3 >= (i16::MIN as isize)) && (relative - 3 <= (i16::MAX as isize)) {
+        relative -= 5;
+        (
+            [
+                // jmp rel16
+                0xE9,
+                relative as u8,
+                (relative >> 8) as u8,
+                0,
+                0,
+                0,
+                0,
+            ],
+            3,
+        )
+    } else {
+        (
+            [
+                // mov edx, #
+                0xBA,
+                address as u8,
+                (address >> 8) as u8,
+                (address >> 16) as u8,
+                (address >> 24) as u8,
+                // jmp edx
+                0xFF,
+                0xE2,
+            ],
+            7,
+        )
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[inline]
+fn assemble_jmp_to_address(address: usize, mut relative: isize) -> ([u8; JMP_MAX_SIZE], usize) {
+    use core::{i32, i8};
+    if (relative - 2 >= (i8::MIN as isize)) && (relative - 2 <= (i8::MAX as isize)) {
         relative -= 2;
         (
             [
@@ -77,29 +135,7 @@ fn assemble_jmp_to_address(address: usize, mut relative: isize) -> ([u8; JMP_MAX
             ],
             2,
         )
-    } else if cfg!(target_arch = "x86") {
-        (
-            [
-                // mov edx, #
-                0xBA,
-                address as u8,
-                (address >> 8) as u8,
-                (address >> 16) as u8,
-                (address >> 24) as u8,
-                // jmp edx
-                0xFF,
-                0xE2,
-                0,
-                0,
-                0,
-                0,
-                0,
-            ],
-            7,
-        )
-    } else if (relative - 5 >= (core::i32::MIN as isize))
-        && (relative - 5 <= (core::i32::MAX as isize))
-    {
+    } else if (relative - 5 >= (i32::MIN as isize)) && (relative - 5 <= (i32::MAX as isize)) {
         relative -= 5;
         (
             [
@@ -158,6 +194,14 @@ impl Drop for PatchGuard {
     }
 }
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+const UNSAFE_LEADING_BYTES: [u8; 4] = [
+    0xC3, // ret near
+    0xCB, // ret far
+    0xC2, // ret near imm16
+    0xCA, // ret far imm16
+];
+
 macro_rules! define_patch {
     ($name:ident($($arguments:ident,)*)) => (
         /// Patch replaces a function with another. Accepts closures as replacement functions as long as they
@@ -166,19 +210,24 @@ macro_rules! define_patch {
             let target = target as *mut u8;
             let mut original = [0; JMP_MAX_SIZE];
 
-            let target_addr = target as usize;
-            let func_addr = func as usize;
+            let leading_byte = unsafe { (*target) };
+            if UNSAFE_LEADING_BYTES.contains(&leading_byte) {
+                panic!("target function is too small (1 byte) to patch");
+            }
 
-            let rel = if target_addr > func_addr {
-                -((target_addr - func_addr) as isize)
+            let target_address = target as usize;
+            let func_address = func as usize;
+
+            let relative = if target_address > func_address {
+                -((target_address - func_address) as isize)
             } else {
-                ((func_addr - target_addr) as isize)
+                ((func_address - target_address) as isize)
             };
 
-            let (patch, len) = assemble_jmp_to_address(func_addr, rel);
+            let (patch, len) = assemble_jmp_to_address(func_address, relative);
 
             unsafe {
-                core::ptr::copy(target, original.as_mut_ptr(), len);
+                core::ptr::copy(target, original.as_mut_ptr(), JMP_MAX_SIZE);
             }
 
             unsafe {
@@ -206,19 +255,31 @@ define_patch!(patch8(A, B, C, D, E, F, G, H,));
 define_patch!(patch9(A, B, C, D, E, F, G, H, I,));
 
 #[cfg(test)]
+#[inline(never)]
+fn tiny() {}
+
+#[cfg(test)]
+#[inline(never)]
+fn the_ultimate_question() -> u32 {
+    42
+}
+
+#[cfg(test)]
+#[inline(never)]
+fn other_question() -> u32 {
+    23
+}
+
+#[cfg(test)]
+#[inline(never)]
+fn default<T: Default>() -> T {
+    T::default()
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use chrono::{Datelike, TimeZone, Timelike, Utc};
-
-    fn the_ultimate_question() -> u32 {
-        42
-    }
-    fn other_question() -> u32 {
-        23
-    }
-    fn default<T: Default>() -> T {
-        T::default()
-    }
 
     #[test]
     fn test_patch() {
@@ -231,6 +292,21 @@ mod tests {
         }
 
         assert_eq!(the_ultimate_question(), 42);
+    }
+
+    #[test]
+    fn test_tiny() {
+        assert_eq!(tiny(), ());
+
+        {
+            let _guard = patch0(tiny, || ());
+
+            assert_eq!(tiny(), ());
+            assert_eq!(the_ultimate_question(), 42);
+            assert_eq!(other_question(), 23);
+        }
+
+        assert_eq!(tiny(), ());
     }
 
     #[test]
