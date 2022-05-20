@@ -8,7 +8,7 @@
 Provides aribtrary monkey patching in Rust. Please do not use this crate for anything outside of testing.
 It will not end well.
 
-Can patch (almost) any function in Rust (free, associated, instance, generic, etc.). Can **not** patch anything from `std`.
+Can patch (almost) any function in Rust (free, associated, instance, generic, etc.).
 
 ## Usage
 
