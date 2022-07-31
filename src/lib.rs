@@ -315,6 +315,33 @@ mod tests {
     }
 
     #[test]
+    fn test_out_of_order_drop() {
+        assert_eq!(the_ultimate_question(), 42);
+
+        let guard_a = patch0(the_ultimate_question, || 24);
+        let guard_b = patch0(the_ultimate_question, || 23);
+
+        core::mem::drop(guard_a);
+        assert_eq!(the_ultimate_question(), 42);
+
+        core::mem::drop(guard_b);
+        // Uh oh.
+        assert_eq!(the_ultimate_question(), 24);
+
+        if let Err(e) = std::panic::catch_unwind(|| {
+            assert_eq!(
+                42,
+                the_ultimate_question(),
+                "Guards dropped without restoring original value!"
+            );
+        }) {
+            // Fix it for other tests before we re-raise
+            core::mem::forget(patch0(the_ultimate_question, || 42));
+            std::panic::resume_unwind(e);
+        }
+    }
+
+    #[test]
     fn test_functions_independent() {
         assert_eq!(the_ultimate_question(), 42);
         assert_eq!(other_question(), 23);
